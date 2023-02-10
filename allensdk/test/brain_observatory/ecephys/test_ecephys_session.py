@@ -66,7 +66,7 @@ def raw_mean_waveforms():
 @pytest.fixture
 def raw_channels():
     return pd.DataFrame({
-        'local_index': [0, 1, 2],
+        'probe_channel_number': [0, 1, 2],
         'probe_horizontal_position': [5, 10, 15],
         'probe_id': [0, 0, 0],
         'probe_vertical_position': [10, 22, 33],
@@ -79,7 +79,7 @@ def raw_units():
     return pd.DataFrame({
         'firing_rate': np.linspace(1, 3, 3),
         'isi_violations': [40, 0.5, 0.1],
-        'local_index': [0, 0, 1],
+        'probe_channel_number': [0, 0, 1],
         'peak_channel_id': [2, 1, 0],
         'quality': ['good', 'good', 'noise'],
         'snr': [0.1, 1.4, 10.0],
@@ -300,7 +300,7 @@ def test_get_stimulus_presentations(valid_stimulus_table_api):
         "stimulus_name": ['invalid_presentation',
                           'invalid_presentation', 'a', 'a_movie'],
         "phase": [np.nan, np.nan, 120.0, 180.0]
-    }, index=pd.Index(name='stimulus_presentations_id', data=[0, 1, 2, 3]))
+    }, index=pd.Index(name='stimulus_presentation_id', data=[0, 1, 2, 3]))
 
     session = EcephysSession(api=valid_stimulus_table_api)
     obtained = session.stimulus_presentations[["start_time",
@@ -323,7 +323,7 @@ def test_get_stimulus_presentations_no_invalid_times(just_stim_table_api):
         "stop_time": [1/2, 1, 3/2, 2],
         'stimulus_name': ['a', 'a', 'a', 'a_movie'],
 
-    }, index=pd.Index(name='stimulus_presentations_id', data=[0, 1, 2, 3]))
+    }, index=pd.Index(name='stimulus_presentation_id', data=[0, 1, 2, 3]))
 
     session = EcephysSession(api=just_stim_table_api)
 
@@ -468,8 +468,8 @@ def test_empty_presentationwise_spike_times(spike_times_api):
             session.stimulus_presentations.index.values,
             session.units.index.values)
 
-    assert(isinstance(obtained, pd.DataFrame))
-    assert(obtained.empty)
+    assert isinstance(obtained, pd.DataFrame)
+    assert obtained.empty
 
 
 def test_conditionwise_spike_statistics(spike_times_api):
@@ -503,11 +503,11 @@ def test_empty_conditionwise_spike_statistics(spike_times_api):
         stimulus_presentation_ids=session.stimulus_presentations.index.values,
         unit_ids=session.units.index.values
     )
-    assert(len(obtained) == 12)
-    assert(not np.any(obtained['spike_count']))  # check all spike_counts are 0
-    assert(not np.any(obtained['spike_mean']))  # spike_means are 0
-    assert(np.all(np.isnan(obtained['spike_std'])))  # std/sem is undefined
-    assert(np.all(np.isnan(obtained['spike_sem'])))
+    assert len(obtained) == 12
+    assert not np.any(obtained['spike_count'])  # check all spike_counts are 0
+    assert not np.any(obtained['spike_mean'])  # spike_means are 0
+    assert np.all(np.isnan(obtained['spike_std']))  # std/sem is undefined
+    assert np.all(np.isnan(obtained['spike_sem']))
 
 
 def test_get_stimulus_parameter_values(just_stim_table_api):

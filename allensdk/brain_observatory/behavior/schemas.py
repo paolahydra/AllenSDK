@@ -1,6 +1,5 @@
-from marshmallow import Schema, fields, RAISE
 import numpy as np
-
+from marshmallow import RAISE, Schema, fields
 
 STYPE_DICT = {fields.Float: 'float', fields.Int: 'int',
               fields.String: 'text', fields.List: 'text',
@@ -33,7 +32,8 @@ class SubjectMetadataSchema(RaisingSchema):
     driver_line = fields.List(
         fields.String,
         doc="Driver line of subject",
-        required=True,
+        required=False,
+        allow_none=True,
         shape=(None,),
     )
     # 'full_genotype' will be stored in pynwb Subject 'genotype' attr
@@ -92,6 +92,11 @@ class BehaviorMetadataSchema(RaisingSchema):
         doc='Name of behavior or optical physiology experiment rig',
         required=True,
     )
+    project_code = fields.String(
+        doc='String Id of project associated with session.',
+        allow_none=True,
+        required=True,
+    )
 
 
 class NwbOphysMetadataSchema(RaisingSchema):
@@ -139,13 +144,21 @@ class OphysMetadataSchema(NwbOphysMetadataSchema):
         doc='Unique ID for the ophys session',
         required=True
     )
-    experiment_container_id = fields.Int(
+    ophys_container_id = fields.Int(
         doc='Container ID for the container that contains this ophys session',
         required=True,
     )
     imaging_depth = fields.Int(
         doc=('Depth (microns) below the cortical surface '
              'targeted for two-photon acquisition'),
+        required=True,
+    )
+    targeted_imaging_depth = fields.Int(
+        doc=(
+            "Average Depth (microns) below the cortical surface "
+            "across experiments of a container."
+            "targeted for two-photon acquisition"
+        ),
         required=True,
     )
     field_of_view_width = fields.Int(
@@ -168,13 +181,17 @@ class OphysMetadataSchema(NwbOphysMetadataSchema):
              'capture multiple concurrent imaging planes.'),
         required=True
     )
+    project_code = fields.String(
+        doc='String Id of project associated with session.',
+        allow_none=True,
+        required=True,
+    )
 
 
 class OphysBehaviorMetadataSchema(BehaviorMetadataSchema, OphysMetadataSchema):
     """ This schema contains fields pertaining to ophys+behavior. It is used
     as a template for generating our custom NWB behavior + ophys extension.
     """
-
     neurodata_type = 'OphysBehaviorMetadata'
     neurodata_type_inc = 'BehaviorMetadata'
     neurodata_doc = "Metadata for behavior + ophys experiments"

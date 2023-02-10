@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from typing import Dict, Optional
 import re
@@ -5,6 +6,9 @@ import numpy as np
 from pynwb import NWBFile
 
 from allensdk.brain_observatory.behavior.data_files import BehaviorStimulusFile
+from allensdk.brain_observatory.behavior.data_objects.metadata\
+    .behavior_metadata.date_of_acquisition import \
+    DateOfAcquisition
 from allensdk.core import DataObject
 
 from allensdk.brain_observatory.behavior.data_objects import BehaviorSessionId
@@ -12,7 +16,7 @@ from allensdk.core import \
     JsonReadableInterface, NwbReadableInterface, \
     LimsReadableInterface
 from allensdk.core import \
-    JsonWritableInterface, NwbWritableInterface
+    NwbWritableInterface
 from allensdk.brain_observatory.behavior.data_objects.metadata\
     .behavior_metadata.behavior_session_uuid import \
     BehaviorSessionUUID
@@ -22,6 +26,9 @@ from allensdk.brain_observatory.behavior.data_objects.metadata\
 from allensdk.brain_observatory.behavior.data_objects.metadata\
     .behavior_metadata.foraging_id import \
     ForagingId
+from allensdk.brain_observatory.behavior.data_objects.metadata\
+    .behavior_metadata.project_code import \
+    ProjectCode
 from allensdk.brain_observatory.behavior.data_objects.metadata\
     .behavior_metadata.session_type import \
     SessionType
@@ -177,24 +184,30 @@ def get_task_parameters(data: Dict) -> Dict:
 class BehaviorMetadata(DataObject, LimsReadableInterface,
                        JsonReadableInterface,
                        NwbReadableInterface,
-                       JsonWritableInterface,
                        NwbWritableInterface):
     """Container class for behavior metadata"""
     def __init__(self,
+                 date_of_acquisition: DateOfAcquisition,
                  subject_metadata: SubjectMetadata,
                  behavior_session_id: BehaviorSessionId,
                  equipment: Equipment,
                  stimulus_frame_rate: StimulusFrameRate,
                  session_type: SessionType,
-                 behavior_session_uuid: BehaviorSessionUUID):
+                 behavior_session_uuid: BehaviorSessionUUID,
+                 project_code: ProjectCode = ProjectCode(),
+                 session_duration: Optional[float] = None
+                 ):
         super().__init__(name='behavior_metadata', value=None,
                          is_value_self=True)
+        self._date_of_acquisition = date_of_acquisition
         self._subject_metadata = subject_metadata
         self._behavior_session_id = behavior_session_id
         self._equipment = equipment
         self._stimulus_frame_rate = stimulus_frame_rate
         self._session_type = session_type
         self._behavior_session_uuid = behavior_session_uuid
+        self._project_code = project_code
+        self._session_duration = session_duration
 
         self._exclude_from_equals = set()
 
@@ -202,15 +215,21 @@ class BehaviorMetadata(DataObject, LimsReadableInterface,
     def from_lims(
             cls,
             behavior_session_id: BehaviorSessionId,
-            lims_db: PostgresQueryMixin
+            lims_db: PostgresQueryMixin,
     ) -> "BehaviorMetadata":
         subject_metadata = SubjectMetadata.from_lims(
-            behavior_session_id=behavior_session_id, lims_db=lims_db)
+            behavior_session_id=behavior_session_id,
+            lims_db=lims_db
+        )
         equipment = Equipment.from_lims(
             behavior_session_id=behavior_session_id.value, lims_db=lims_db)
 
         stimulus_file = BehaviorStimulusFile.from_lims(
-            db=lims_db, behavior_session_id=behavior_session_id.value)
+            db=lims_db, behavior_session_id=behavior_session_id.value)\
+            .validate()
+        date_of_acquisition = DateOfAcquisition.from_stimulus_file(
+            stimulus_file=stimulus_file)
+
         stimulus_frame_rate = StimulusFrameRate.from_stimulus_file(
             stimulus_file=stimulus_file)
         session_type = SessionType.from_stimulus_file(
@@ -224,13 +243,20 @@ class BehaviorMetadata(DataObject, LimsReadableInterface,
                       foraging_id=foraging_id.value,
                       stimulus_file=stimulus_file)
 
+        project_code = ProjectCode.from_lims(
+            behavior_session_id=behavior_session_id.value,
+            lims_db=lims_db)
+
         return BehaviorMetadata(
+            date_of_acquisition=date_of_acquisition,
             subject_metadata=subject_metadata,
             behavior_session_id=behavior_session_id,
             equipment=equipment,
             stimulus_frame_rate=stimulus_frame_rate,
             session_type=session_type,
             behavior_session_uuid=behavior_session_uuid,
+            project_code=project_code,
+            session_duration=stimulus_file.session_duration
         )
 
     @classmethod
@@ -240,6 +266,8 @@ class BehaviorMetadata(DataObject, LimsReadableInterface,
         equipment = Equipment.from_json(dict_repr=dict_repr)
 
         stimulus_file = BehaviorStimulusFile.from_json(dict_repr=dict_repr)
+        date_of_acquisition = DateOfAcquisition.from_stimulus_file(
+            stimulus_file=stimulus_file)
         stimulus_frame_rate = StimulusFrameRate.from_stimulus_file(
             stimulus_file=stimulus_file)
         session_type = SessionType.from_stimulus_file(
@@ -248,16 +276,20 @@ class BehaviorMetadata(DataObject, LimsReadableInterface,
             stimulus_file=stimulus_file)
 
         return BehaviorMetadata(
+            date_of_acquisition=date_of_acquisition,
             subject_metadata=subject_metadata,
             behavior_session_id=behavior_session_id,
             equipment=equipment,
             stimulus_frame_rate=stimulus_frame_rate,
             session_type=session_type,
             behavior_session_uuid=session_uuid,
+            session_duration=stimulus_file.session_duration,
+            project_code=ProjectCode(),
         )
 
     @classmethod
     def from_nwb(cls, nwbfile: NWBFile) -> "BehaviorMetadata":
+        date_of_acquisition = DateOfAcquisition.from_nwb(nwbfile=nwbfile)
         subject_metadata = SubjectMetadata.from_nwb(nwbfile=nwbfile)
 
         behavior_session_id = BehaviorSessionId.from_nwb(nwbfile=nwbfile)
@@ -265,15 +297,22 @@ class BehaviorMetadata(DataObject, LimsReadableInterface,
         stimulus_frame_rate = StimulusFrameRate.from_nwb(nwbfile=nwbfile)
         session_type = SessionType.from_nwb(nwbfile=nwbfile)
         session_uuid = BehaviorSessionUUID.from_nwb(nwbfile=nwbfile)
+        project_code = ProjectCode.from_nwb(nwbfile=nwbfile)
 
         return BehaviorMetadata(
+            date_of_acquisition=date_of_acquisition,
             subject_metadata=subject_metadata,
             behavior_session_id=behavior_session_id,
             equipment=equipment,
             stimulus_frame_rate=stimulus_frame_rate,
             session_type=session_type,
-            behavior_session_uuid=session_uuid
+            behavior_session_uuid=session_uuid,
+            project_code=project_code,
         )
+
+    @property
+    def date_of_acquisition(self) -> datetime.datetime:
+        return self._date_of_acquisition.value
 
     @property
     def equipment(self) -> Equipment:
@@ -296,11 +335,20 @@ class BehaviorMetadata(DataObject, LimsReadableInterface,
         return self._behavior_session_id.value
 
     @property
+    def project_code(self) -> str:
+        return self._project_code.value
+
+    @property
     def subject_metadata(self):
         return self._subject_metadata
 
-    def to_json(self) -> dict:
-        pass
+    @property
+    def is_pretest(self):
+        return self.session_type.lower().startswith('pretest')
+
+    @property
+    def is_training(self):
+        return self.session_type.lower().startswith('training_0')
 
     def to_nwb(self, nwbfile: NWBFile) -> NWBFile:
         self._subject_metadata.to_nwb(nwbfile=nwbfile)
@@ -313,8 +361,23 @@ class BehaviorMetadata(DataObject, LimsReadableInterface,
             behavior_session_uuid=str(self.behavior_session_uuid),
             stimulus_frame_rate=self.stimulus_frame_rate,
             session_type=self.session_type,
-            equipment_name=self.equipment.value
+            equipment_name=self.equipment.value,
+            project_code=self.project_code
         )
         nwbfile.add_lab_meta_data(nwb_metadata)
 
         return nwbfile
+
+    def get_session_duration(self) -> Optional[float]:
+        """
+
+        Returns
+        -------
+        session duration
+
+        Notes
+        -----
+        Missing in the case of reading from NWB since we don't include this
+            field in that case
+        """
+        return self._session_duration

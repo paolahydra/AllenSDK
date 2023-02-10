@@ -1,11 +1,11 @@
-from typing import Dict, Union
+from typing import Union
 from pathlib import Path
 
 import pandas as pd
 
 from allensdk.brain_observatory.behavior.eye_tracking_processing import \
     load_eye_tracking_hdf
-from allensdk.internal.api import PostgresQueryMixin
+from allensdk.internal.api import PostgresQueryMixin, OneResultExpectedError
 from allensdk.internal.core.lims_utilities import safe_system_path
 from allensdk.internal.core import DataFile
 
@@ -23,9 +23,6 @@ class EyeTrackingFile(DataFile):
         filepath = dict_repr["eye_tracking_filepath"]
         return cls(filepath=filepath)
 
-    def to_json(self) -> Dict[str, str]:
-        return {"eye_tracking_filepath": str(self.filepath)}
-
     @classmethod
     def from_lims(
         cls, db: PostgresQueryMixin,
@@ -41,7 +38,10 @@ class EyeTrackingFile(DataFile):
                     AND wkft.name = 'EyeTracking Ellipses'
                     AND bs.id = {behavior_session_id};
                 """  # noqa E501
-        filepath = db.fetchone(query, strict=True)
+        try:
+            filepath = db.fetchone(query, strict=True)
+        except OneResultExpectedError:
+            return None
         return cls(filepath=filepath)
 
     @staticmethod
